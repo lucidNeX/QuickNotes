@@ -1,2 +1,2 @@
 An Aspirant's Note Book.
-Quick Notes transforms your raw text, topics, or handwritten note photos into beautifully structured documents — ready to download as PDF or Word and share with teammates instantly. 
+Quick Notes is a fast, versatile document creator built for creators, students, and professionals on the move. Stop losing great ideas during your daily commute or social media scrolling. Easily turn raw thoughts, screenshots, and photos into beautifully formatted PDFs or Word files. Unlock advanced AI features with your own API key to generate text from prompts or extract notes directly from uploaded images. Merge PDFs, customize file details, share effortlessly via WhatsApp or Gmail, and install it to your home screen for instant, dual-theme access.
