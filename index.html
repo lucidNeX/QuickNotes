@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="description" content="Quick Notes — AI note generator, PDF merger &amp; sharing"/>
+<meta name="theme-color" content="#0d0b08"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Quick Notes"/>
+<link id="pwa-manifest" rel="manifest"/>
+<title>Quick Notes — AI Note Generator</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+<style>
+/* ================================================================
+   TOKENS
+================================================================ */
+:root{
+  --bg:#0d0b08; --s1:#1a1612; --s2:#25211b; --s3:#332e26; --s4:#4a4338;
+  --acc:#f59e0b; --acc-l:#fcd34d; --acc-dim:rgba(245,158,11,.13); --acc-bd:rgba(245,158,11,.28);
+  --teal:#14b8a6; --blue:#3b82f6; --red:#ef4444; --grn:#22c55e;
+  --red-dim:rgba(239,68,68,.13); --grn-dim:rgba(34,197,94,.13); --blue-dim:rgba(59,130,246,.13);
+  --tx:#fafaf9; --tx1:#d6d3d1; --mu:#a8a29e; --fa:#57534e;
+  --bd:rgba(255,255,255,.06); --bd2:rgba(255,255,255,.1); --bd3:rgba(255,255,255,.16);
+  --sw:230px; --r:12px; --rsm:8px; --rxs:5px; --rf:9999px;
+  --sh:0 8px 32px rgba(0,0,0,.5); --ssh:0 2px 12px rgba(0,0,0,.3);
+  --tr:.2s cubic-bezier(.4,0,.2,1);
+}
+[data-theme="light"]{
+  --bg:#fafaf9; --s1:#f5f5f4; --s2:#e7e5e4; --s3:#d6d3d1; --s4:#a8a29e;
+  --acc:#d97706; --acc-l:#f59e0b; --acc-dim:rgba(217,119,6,.1); --acc-bd:rgba(217,119,6,.3);
+  --tx:#1c1917; --tx1:#292524; --mu:#78716c; --fa:#a8a29e;
+  --bd:rgba(0,0,0,.07); --bd2:rgba(0,0,0,.11); --bd3:rgba(0,0,0,.18);
+  --sh:0 8px 32px rgba(0,0,0,.1); --ssh:0 2px 12px rgba(0,0,0,.07);
+}
+
+/* ================================================================
+   RESET
+================================================================ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  background:var(--bg);color:var(--tx);
+  display:flex;height:100dvh;overflow:hidden;
+  font-size:14px;line-height:1.5;
+  transition:background var(--tr),color var(--tr);
+}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--s3);border-radius:2px}
+
+/* ================================================================
+   COPYRIGHT — FIX #10
+================================================================ */
+.copyright-bar{
+  position:fixed;bottom:5px;right:10px;z-index:200;
+  font-size:9px;color:var(--fa);opacity:.5;
+  font-family:'JetBrains Mono',monospace;letter-spacing:.6px;
+  pointer-events:none;user-select:none;
+}
+
+/* ================================================================
+   SIDEBAR
+================================================================ */
+.sidebar{
+  width:var(--sw);background:var(--s1);
+  border-right:1px solid var(--bd);
+  display:flex;flex-direction:column;flex-shrink:0;
+  z-index:50;transition:width var(--tr),background var(--tr);
+  overflow:hidden;
+}
+.sb-logo{
+  padding:18px 16px 14px;border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;gap:10px;
+}
+.logo-mark{
+  width:34px;height:34px;background:var(--acc);
+  border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:17px;flex-shrink:0;position:relative;overflow:hidden;
+}
+.logo-mark::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.28),transparent)}
+.logo-name{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:16px;font-weight:800;color:var(--tx);white-space:nowrap;
+}
+.logo-name em{font-style:normal;color:var(--acc)}
+.logo-v{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;font-weight:600;color:var(--fa);
+  padding:2px 7px;border:1px solid var(--bd);border-radius:var(--rf);
+  white-space:nowrap;
+}
+.nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+.nav-lbl{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;font-weight:600;color:var(--fa);
+  text-transform:uppercase;letter-spacing:1.2px;padding:7px 8px 3px;
+}
+.nav-link{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-radius:var(--rsm);
+  cursor:pointer;border:1px solid transparent;
+  background:transparent;color:var(--mu);
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:13px;font-weight:500;
+  transition:all var(--tr);width:100%;text-align:left;white-space:nowrap;
+}
+.nav-link .ni{
+  width:27px;height:27px;border-radius:var(--rxs);
+  background:var(--s2);display:flex;align-items:center;justify-content:center;
+  font-size:12px;transition:all var(--tr);flex-shrink:0;
+}
+.nav-link:hover{background:var(--s2);color:var(--tx)}
+.nav-link:hover .ni{color:var(--acc)}
+.nav-link.active{background:var(--acc-dim);border-color:var(--acc-bd);color:var(--acc)}
+.nav-link.active .ni{background:var(--acc);color:var(--bg)}
+.sb-foot{
+  padding:10px;border-top:1px solid var(--bd);
+  display:flex;flex-direction:column;gap:7px;
+}
+.theme-row{
+  display:flex;align-items:center;gap:9px;
+  padding:8px 11px;background:var(--s2);
+  border:1px solid var(--bd);border-radius:var(--rsm);
+  cursor:pointer;transition:border-color var(--tr);
+}
+.theme-row:hover{border-color:var(--acc-bd)}
+.t-lbl{flex:1;font-size:12.5px;font-weight:500;color:var(--mu);white-space:nowrap}
+.pill{
+  width:32px;height:17px;background:var(--s3);
+  border-radius:var(--rf);position:relative;
+  transition:background var(--tr);flex-shrink:0;
+}
+.pill.on{background:var(--acc)}
+.pill-thumb{
+  position:absolute;width:12px;height:12px;
+  background:white;border-radius:50%;
+  top:2.5px;left:2.5px;
+  transition:transform var(--tr);
+  box-shadow:0 1px 3px rgba(0,0,0,.3);
+}
+.pill.on .pill-thumb{transform:translateX(15px)}
+
+/* API Key button */
+.key-btn{
+  display:flex;align-items:center;gap:7px;justify-content:center;
+  padding:8px 12px;background:var(--s2);
+  border:1px solid var(--bd);border-radius:var(--rsm);
+  color:var(--mu);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:12px;font-weight:600;cursor:pointer;
+  transition:all var(--tr);white-space:nowrap;
+}
+.key-btn:hover{border-color:var(--acc-bd);color:var(--acc)}
+.key-btn.set{border-color:rgba(34,197,94,.3);color:var(--grn)}
+
+.inst-btn{
+  display:none;align-items:center;gap:7px;justify-content:center;
+  padding:8px 12px;background:var(--acc-dim);
+  border:1px solid var(--acc-bd);border-radius:var(--rsm);
+  color:var(--acc);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:12px;font-weight:600;cursor:pointer;
+  transition:all var(--tr);white-space:nowrap;
+}
+.inst-btn:hover{background:var(--acc);color:var(--bg)}
+.inst-btn.show{display:flex}
+
+/* ================================================================
+   MAIN
+================================================================ */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.page{display:none;flex:1;overflow:hidden;flex-direction:column;animation:pi .22s ease both}
+.page.active{display:flex}
+@keyframes pi{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+
+/* ================================================================
+   PAGE HEADER
+================================================================ */
+.ph{
+  padding:12px 18px;border-bottom:1px solid var(--bd);
+  background:var(--s1);display:flex;align-items:center;gap:11px;flex-shrink:0;
+  flex-wrap:wrap;
+}
+.back-btn{
+  display:flex;align-items:center;gap:5px;
+  padding:5px 11px;background:var(--s2);
+  border:1px solid var(--bd);border-radius:var(--rsm);
+  color:var(--mu);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:12px;font-weight:600;cursor:pointer;
+  transition:all var(--tr);
+}
+.back-btn:hover{border-color:var(--acc-bd);color:var(--acc)}
+.ph-title{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:15px;font-weight:800;
+  display:flex;align-items:center;gap:8px;flex:1;
+}
+.ph-badge{
+  padding:2px 9px;background:var(--acc-dim);
+  border:1px solid var(--acc-bd);border-radius:var(--rf);
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;font-weight:600;color:var(--acc);
+}
+
+/* ================================================================
+   HOME PAGE
+================================================================ */
+.home-scroll{flex:1;overflow-y:auto;padding:50px 54px 80px}
+.home-inner{max-width:800px;margin:0 auto}
+.h-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:5px 14px;background:var(--acc-dim);
+  border:1px solid var(--acc-bd);border-radius:var(--rf);
+  font-family:'JetBrains Mono',monospace;
+  font-size:10.5px;font-weight:600;color:var(--acc);
+  margin-bottom:22px;
+}
+.blink-dot{width:7px;height:7px;background:var(--acc);border-radius:50%;animation:bld 1.8s ease infinite}
+@keyframes bld{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(.55)}}
+.h-h1{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:clamp(34px,5vw,58px);font-weight:800;
+  line-height:1.1;letter-spacing:-.5px;margin-bottom:16px;
+}
+.h-h1 em{font-style:normal;color:var(--acc);position:relative}
+.h-h1 em::after{
+  content:'';position:absolute;left:0;right:0;bottom:1px;
+  height:3px;background:var(--acc);border-radius:2px;opacity:.35;
+}
+.h-sub{font-size:15.5px;color:var(--mu);line-height:1.75;max-width:500px;margin-bottom:36px}
+.h-ctas{display:flex;gap:11px;flex-wrap:wrap;margin-bottom:64px}
+.btn-amber{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:12px 26px;background:var(--acc);border:none;
+  border-radius:var(--rf);color:#0d0b08;
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:13.5px;font-weight:700;cursor:pointer;
+  transition:all var(--tr);box-shadow:0 0 22px rgba(245,158,11,.3);
+}
+.btn-amber:hover{transform:translateY(-2px);box-shadow:0 6px 28px rgba(245,158,11,.4)}
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:12px 24px;background:transparent;
+  border:1px solid var(--bd2);border-radius:var(--rf);
+  color:var(--mu);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:13.5px;font-weight:600;cursor:pointer;
+  transition:all var(--tr);
+}
+.btn-ghost:hover{border-color:var(--acc-bd);color:var(--acc)}
+.eyebrow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9.5px;font-weight:600;color:var(--acc);
+  text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;
+}
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:56px}
+.feat{
+  padding:20px 18px;background:var(--s1);
+  border:1px solid var(--bd);border-radius:var(--r);
+  transition:all var(--tr);position:relative;overflow:hidden;
+}
+.feat::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--acc);transform:scaleX(0);transform-origin:left;
+  transition:transform var(--tr);
+}
+.feat:hover{border-color:var(--bd2);transform:translateY(-2px)}
+.feat:hover::before{transform:scaleX(1)}
+.feat-ic{
+  width:36px;height:36px;border-radius:8px;
+  background:var(--s2);border:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;margin-bottom:11px;color:var(--acc);
+}
+.feat-t{font-family:'Bricolage Grotesque',sans-serif;font-size:13.5px;font-weight:700;margin-bottom:5px}
+.feat-d{font-size:12px;color:var(--mu);line-height:1.6}
+.steps{display:flex;position:relative;margin-top:18px}
+.steps::before{content:'';position:absolute;top:18px;left:8%;right:8%;height:1px;background:var(--acc);opacity:.18}
+.step{flex:1;text-align:center;padding:0 8px}
+.step-n{
+  width:37px;height:37px;border-radius:50%;
+  background:var(--s1);border:1.5px solid var(--acc-bd);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;font-weight:700;color:var(--acc);
+  margin:0 auto 11px;position:relative;z-index:1;
+}
+.step-t{font-weight:700;font-size:12.5px;margin-bottom:3px}
+.step-d{font-size:11.5px;color:var(--mu);line-height:1.5}
+
+/* ================================================================
+   QUICK NOTES PAGE
+================================================================ */
+.qn-hd{
+  padding:9px 16px;border-bottom:1px solid var(--bd);
+  background:var(--s1);display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;
+}
+.doc-inputs{display:flex;gap:9px;flex:1}
+.di{
+  padding:7px 12px;background:var(--s2);border:1px solid var(--bd);
+  border-radius:var(--rsm);color:var(--tx);
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;
+  outline:none;flex:1;transition:border-color var(--tr);
+}
+.di:focus{border-color:var(--acc-bd)}
+.di::placeholder{color:var(--fa)}
+.qn-body{flex:1;display:flex;overflow:hidden}
+
+/* Chat col */
+.chat-col{width:42%;display:flex;flex-direction:column;border-right:1px solid var(--bd)}
+.chat-feed{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.msg{display:flex;gap:8px;animation:fu .24s ease both}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{flex-direction:row-reverse}
+.msg-av{
+  width:27px;height:27px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:11px;
+}
+.msg-av.ai{background:var(--acc);color:var(--bg);font-weight:700;font-size:13px}
+.msg-av.user{background:var(--s3);color:var(--mu)}
+.msg-c{max-width:88%}
+.msg-b{
+  padding:10px 13px;border-radius:11px;font-size:13px;line-height:1.65;
+}
+.msg.ai .msg-b{background:var(--s2);border:1px solid var(--bd);border-top-left-radius:3px}
+.msg.user .msg-b{background:var(--acc-dim);border:1px solid var(--acc-bd);border-top-right-radius:3px}
+.msg-t{font-size:10px;color:var(--fa);margin-top:3px;padding:0 2px}
+.msg.user .msg-t{text-align:right}
+.msg-img{border-radius:7px;max-width:110px;max-height:80px;object-fit:cover;border:1px solid var(--bd);display:inline-block;margin:2px}
+
+/* Typing */
+.ty-b{
+  background:var(--s2);border:1px solid var(--bd);
+  border-radius:11px;border-top-left-radius:3px;
+  padding:11px 15px;display:flex;gap:4px;align-items:center;
+}
+.td{width:6px;height:6px;background:var(--acc);border-radius:50%;animation:td 1.3s ease infinite;opacity:.35}
+.td:nth-child(2){animation-delay:.15s}.td:nth-child(3){animation-delay:.3s}
+@keyframes td{0%,100%{transform:translateY(0);opacity:.35}50%{transform:translateY(-5px);opacity:1}}
+
+/* Input area */
+.chat-inp{padding:11px 13px;border-top:1px solid var(--bd);background:var(--s1)}
+
+/* FIX #2 — Multiple image upload strip */
+.up-strip{
+  display:none;flex-wrap:wrap;align-items:center;gap:6px;
+  padding:7px 10px;background:var(--s2);
+  border:1px solid var(--acc-bd);border-radius:var(--rsm);
+  margin-bottom:7px;font-size:12px;color:var(--mu);
+}
+.up-strip.show{display:flex}
+.up-thumb-item{
+  position:relative;display:inline-flex;
+  border-radius:5px;overflow:visible;
+}
+.up-thumb-item img{
+  width:36px;height:36px;border-radius:5px;
+  object-fit:cover;border:1px solid var(--bd);display:block;
+}
+.up-thumb-rm{
+  position:absolute;top:-5px;right:-5px;
+  width:15px;height:15px;border-radius:50%;
+  border:1px solid var(--bd);
+  background:var(--s3);color:var(--mu);cursor:pointer;font-size:8px;
+  display:flex;align-items:center;justify-content:center;transition:all var(--tr);
+  line-height:1;padding:0;
+}
+.up-thumb-rm:hover{border-color:var(--red);color:var(--red);background:var(--red-dim)}
+.up-strip-lbl{font-size:11px;color:var(--mu);flex:1;min-width:60px}
+
+textarea.ta{
+  width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--bd);
+  border-radius:var(--rsm);color:var(--tx);
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;
+  resize:none;outline:none;min-height:68px;max-height:130px;
+  line-height:1.55;transition:border-color var(--tr);
+}
+textarea.ta:focus{border-color:var(--acc-bd)}
+textarea.ta::placeholder{color:var(--fa)}
+.ctrl-bar{display:flex;align-items:center;gap:6px;margin-top:7px;flex-wrap:wrap}
+.cb{
+  display:flex;align-items:center;gap:5px;
+  padding:6px 11px;background:var(--s2);border:1px solid var(--bd);
+  border-radius:var(--rsm);color:var(--mu);
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:500;
+  cursor:pointer;transition:all var(--tr);white-space:nowrap;
+}
+.cb:hover{border-color:var(--bd2);color:var(--tx)}
+.cb.on{background:var(--acc-dim);border-color:var(--acc-bd);color:var(--acc)}
+.cb.danger:hover{border-color:rgba(239,68,68,.4);color:var(--red)}
+.cb.send{
+  margin-left:auto;background:var(--acc);border-color:transparent;
+  color:var(--bg);font-weight:700;padding:7px 19px;
+  box-shadow:0 0 14px rgba(245,158,11,.25);
+}
+.cb.send:hover{opacity:.88;transform:translateY(-1px)}
+.cb.send:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.finp{display:none}
+
+/* Preview col */
+.prev-col{flex:1;display:flex;flex-direction:column}
+.prev-tb{
+  padding:8px 15px;border-bottom:1px solid var(--bd);
+  background:var(--s1);display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+}
+.pt-t{
+  font-family:'Bricolage Grotesque',sans-serif;font-size:13.5px;font-weight:700;
+  display:flex;align-items:center;gap:6px;flex:1;white-space:nowrap;
+}
+.sep{width:1px;height:20px;background:var(--bd);flex-shrink:0}
+.ab{
+  display:flex;align-items:center;gap:5px;padding:5px 11px;
+  border-radius:var(--rxs);border:1px solid var(--bd);
+  background:var(--s2);cursor:pointer;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:11.5px;font-weight:600;
+  transition:all var(--tr);white-space:nowrap;
+}
+.ab.pdf{color:#f87171;border-color:rgba(248,113,113,.22)}
+.ab.pdf:hover{background:rgba(248,113,113,.1)}
+.ab.word{color:#60a5fa;border-color:rgba(96,165,250,.22)}
+.ab.word:hover{background:rgba(96,165,250,.1)}
+.ab.wa{color:#4ade80;border-color:rgba(74,222,128,.22)}
+.ab.wa:hover{background:rgba(74,222,128,.1)}
+.ab.gm{color:#fb923c;border-color:rgba(251,146,60,.22)}
+.ab.gm:hover{background:rgba(251,146,60,.1)}
+.ab.danger-btn{color:#f87171;border-color:rgba(248,113,113,.22)}
+.ab.danger-btn:hover{background:rgba(248,113,113,.1)}
+.ab.lk{opacity:.3;pointer-events:none}
+.prev-area{flex:1;overflow-y:auto;padding:22px 26px}
+.prev-empty{
+  height:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:9px;
+  color:var(--fa);text-align:center;
+}
+.ei{
+  width:54px;height:54px;border-radius:13px;
+  background:var(--s2);border:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;margin-bottom:5px;
+}
+.prev-empty h3{font-family:'Bricolage Grotesque',sans-serif;font-size:14.5px;font-weight:700;color:var(--mu)}
+.prev-empty p{font-size:12px}
+
+/* Shimmer */
+.shim-box{display:none}
+.shim-box.on{display:block}
+.sh{
+  background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 50%,var(--s2) 75%);
+  background-size:200% 100%;animation:shim 1.4s ease infinite;
+  border-radius:4px;margin-bottom:8px;
+}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* Doc sheet */
+.doc-sheet{
+  background:var(--s1);border:1px solid var(--bd);
+  border-radius:var(--r);padding:32px 36px;
+  display:none;min-height:200px;font-size:13.5px;line-height:1.75;
+}
+[data-theme="light"] .doc-sheet{background:#fff;box-shadow:0 4px 22px rgba(0,0,0,.08)}
+.doc-sheet h1{
+  font-family:'Bricolage Grotesque',sans-serif;font-size:20px;font-weight:800;
+  color:var(--acc);border-bottom:2px solid var(--bd);
+  padding-bottom:10px;margin-bottom:14px;
+}
+.doc-sheet h2{
+  font-family:'Bricolage Grotesque',sans-serif;font-size:15.5px;font-weight:700;
+  margin:18px 0 8px;color:var(--tx);
+}
+.doc-sheet h3{font-size:13.5px;font-weight:600;color:var(--mu);margin:13px 0 6px}
+.doc-sheet p{margin-bottom:8px}
+.doc-sheet ul,.doc-sheet ol{padding-left:19px;margin-bottom:10px}
+.doc-sheet li{margin-bottom:4px}
+.doc-sheet strong{color:var(--acc)}
+.doc-sheet hr{border:none;border-top:1px solid var(--bd);margin:16px 0}
+.doc-sheet blockquote{border-left:3px solid var(--acc);padding-left:12px;color:var(--mu);font-style:italic;margin:10px 0}
+.doc-sheet table{width:100%;border-collapse:collapse;margin:11px 0;font-size:12.5px}
+.doc-sheet th{background:var(--s2);padding:6px 10px;text-align:left;font-weight:600;border:1px solid var(--bd)}
+.doc-sheet td{padding:5px 10px;border:1px solid var(--bd)}
+.doc-sheet img{max-width:100%;border-radius:7px;margin:9px 0;border:1px solid var(--bd)}
+.doc-sheet a{color:var(--acc)}
+
+/* ================================================================
+   MERGE PDF PAGE
+================================================================ */
+.merge-scroll{flex:1;overflow-y:auto;padding:22px 26px}
+.merge-inner{max-width:740px;margin:0 auto}
+.mode-tabs{display:flex;gap:10px;margin-bottom:22px}
+.mode-tab{
+  flex:1;padding:18px;background:var(--s1);
+  border:1px solid var(--bd);border-radius:var(--r);
+  cursor:pointer;transition:all var(--tr);text-align:center;
+}
+.mode-tab-ic{font-size:22px;margin-bottom:7px}
+.mode-tab-t{font-family:'Bricolage Grotesque',sans-serif;font-size:14px;font-weight:700;margin-bottom:3px}
+.mode-tab-d{font-size:12px;color:var(--mu)}
+.mode-tab:hover{border-color:var(--bd2)}
+.mode-tab.active{background:var(--acc-dim);border-color:var(--acc-bd)}
+.mode-tab.active .mode-tab-ic,.mode-tab.active .mode-tab-t{color:var(--acc)}
+.up-zone{
+  border:1.5px dashed var(--bd2);border-radius:var(--r);
+  padding:34px 22px;text-align:center;cursor:pointer;
+  transition:all var(--tr);margin-bottom:14px;
+}
+.up-zone:hover,.up-zone.drag-over{border-color:var(--acc-bd);background:var(--acc-dim)}
+.uz-ic{font-size:30px;color:var(--fa);margin-bottom:9px}
+.uz-t{font-family:'Bricolage Grotesque',sans-serif;font-size:14.5px;font-weight:700;margin-bottom:4px}
+.uz-s{font-size:12px;color:var(--mu)}
+.uz-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 16px;margin-top:10px;
+  background:var(--acc-dim);border:1px solid var(--acc-bd);
+  border-radius:var(--rf);color:var(--acc);
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:12px;font-weight:600;cursor:pointer;
+  transition:all var(--tr);
+}
+.uz-btn:hover{background:var(--acc);color:var(--bg)}
+.file-list{display:flex;flex-direction:column;gap:6px;margin-bottom:18px}
+.fi{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 13px;background:var(--s1);
+  border:1px solid var(--bd);border-radius:var(--rsm);
+  transition:border-color var(--tr);
+}
+.fi:hover{border-color:var(--bd2)}
+.fi-ic{font-size:17px;color:var(--acc)}
+.fi-n{flex:1;font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi-sz{font-size:11px;color:var(--mu);white-space:nowrap;font-family:'JetBrains Mono',monospace}
+.fi-img-prev{width:36px;height:36px;border-radius:5px;object-fit:cover;border:1px solid var(--bd)}
+.fi-rm{
+  width:22px;height:22px;border-radius:50%;border:1px solid var(--bd);
+  background:transparent;color:var(--mu);cursor:pointer;font-size:10px;
+  display:flex;align-items:center;justify-content:center;transition:all var(--tr);
+}
+.fi-rm:hover{border-color:var(--red);color:var(--red)}
+.merge-acts{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px}
+.btn-process{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:10px 22px;background:var(--acc);border:none;
+  border-radius:var(--rf);color:var(--bg);
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;
+  cursor:pointer;transition:all var(--tr);box-shadow:0 0 18px rgba(245,158,11,.22);
+}
+.btn-process:hover{opacity:.88;transform:translateY(-1px)}
+.btn-process:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-out{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:10px 22px;background:transparent;
+  border:1px solid var(--bd2);border-radius:var(--rf);
+  color:var(--mu);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:13px;font-weight:600;cursor:pointer;transition:all var(--tr);
+}
+.btn-out:hover{border-color:var(--acc-bd);color:var(--acc)}
+.btn-out.lk{opacity:.3;pointer-events:none}
+.share-row{display:flex;gap:8px;flex-wrap:wrap}
+.sc{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 16px;border-radius:var(--rf);
+  border:1px solid var(--bd);background:var(--s1);
+  cursor:pointer;font-size:12.5px;font-weight:600;
+  transition:all var(--tr);
+}
+.sc.wa{color:#4ade80;border-color:rgba(74,222,128,.22)}.sc.wa:hover{background:rgba(74,222,128,.1)}
+.sc.gm{color:#fb923c;border-color:rgba(251,146,60,.22)}.sc.gm:hover{background:rgba(251,146,60,.1)}
+.sc.lk{opacity:.3;pointer-events:none}
+.progress-wrap{display:none;height:3px;background:var(--s2);border-radius:2px;overflow:hidden;margin-bottom:14px}
+.progress-wrap.show{display:block}
+.progress-bar{height:100%;background:var(--acc);border-radius:2px;animation:prg 1.3s ease-in-out infinite}
+@keyframes prg{0%{width:0}50%{width:65%}100%{width:100%}}
+.merge-result{
+  display:none;padding:16px 18px;
+  background:var(--grn-dim);border:1px solid rgba(34,197,94,.3);
+  border-radius:var(--rsm);margin-bottom:16px;
+  font-size:13px;color:var(--grn);font-weight:600;
+  align-items:center;gap:9px;
+}
+.merge-result.show{display:flex}
+
+/* ================================================================
+   MODAL
+================================================================ */
+.modal-ov{
+  position:fixed;inset:0;background:rgba(0,0,0,.72);
+  backdrop-filter:blur(4px);z-index:1000;
+  display:none;align-items:center;justify-content:center;padding:20px;
+}
+.modal-ov.show{display:flex}
+.modal{
+  background:var(--s1);border:1px solid var(--bd);
+  border-radius:var(--r);padding:26px 26px 22px;
+  max-width:420px;width:100%;box-shadow:var(--sh);
+}
+.m-ic{font-size:26px;margin-bottom:10px}
+.m-t{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:16px;font-weight:800;margin-bottom:7px;
+}
+.m-body{font-size:13px;color:var(--mu);line-height:1.65;margin-bottom:14px}
+.m-err{
+  padding:9px 12px;background:var(--red-dim);
+  border:1px solid rgba(239,68,68,.28);border-radius:var(--rsm);
+  font-size:11.5px;color:#fca5a5;
+  font-family:'JetBrains Mono',monospace;
+  margin-bottom:16px;line-height:1.5;word-break:break-all;
+}
+.m-inp{
+  width:100%;padding:9px 12px;background:var(--s2);
+  border:1px solid var(--bd);border-radius:var(--rsm);
+  color:var(--tx);font-family:'JetBrains Mono',monospace;font-size:12px;
+  outline:none;margin-bottom:7px;transition:border-color var(--tr);
+}
+.m-inp:focus{border-color:var(--acc-bd)}
+.m-inp::placeholder{color:var(--fa)}
+.m-hint{font-size:11px;color:var(--fa);margin-bottom:16px;line-height:1.5}
+.m-btns{display:flex;gap:9px}
+.m-btn{
+  flex:1;padding:9px 16px;border-radius:var(--rsm);
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:12.5px;font-weight:700;cursor:pointer;
+  transition:all var(--tr);border:none;
+}
+.m-btn.p{background:var(--acc);color:var(--bg)}
+.m-btn.p:hover{opacity:.88}
+.m-btn.s{background:var(--s2);color:var(--mu);border:1px solid var(--bd)}
+.m-btn.s:hover{color:var(--tx)}
+.m-btn.danger{background:var(--red-dim);color:#fca5a5;border:1px solid rgba(239,68,68,.28)}
+.m-btn.danger:hover{background:rgba(239,68,68,.2)}
+
+/* ================================================================
+   TOAST
+================================================================ */
+.toast{
+  position:fixed;bottom:18px;right:18px;z-index:2000;
+  padding:9px 15px;background:var(--s2);border:1px solid var(--bd2);
+  border-radius:var(--rsm);font-size:12.5px;font-weight:500;
+  display:flex;align-items:center;gap:7px;
+  transform:translateY(65px);opacity:0;
+  transition:all .28s cubic-bezier(.4,0,.2,1);
+  box-shadow:var(--sh);max-width:340px;
+}
+.toast.show{transform:translateY(0);opacity:1}
+
+/* ================================================================
+   RESPONSIVE — FIX #5 (mobile menu)
+================================================================ */
+@media(max-width:900px){
+  .sidebar{width:58px}
+  .logo-name,.nav-lbl,.nav-link span,.t-lbl,.inst-btn span,.logo-v{display:none}
+  .sb-logo{justify-content:center;padding:14px 8px}
+  .nav{padding:9px 6px}.nav-link{padding:9px;justify-content:center}
+  .sb-foot{padding:7px 6px}
+  .theme-row{justify-content:center;padding:8px}
+  .key-btn span{display:none}
+}
+@media(max-width:640px){
+  body{flex-direction:column}
+  .sidebar{
+    width:100%!important;height:54px;flex-direction:row;
+    align-items:center;padding:0 8px;
+    border-right:none;border-bottom:1px solid var(--bd);
+    overflow:hidden;flex-shrink:0;
+  }
+  .sb-logo{border-bottom:none;padding:0 8px 0 0;flex-shrink:0}
+  .logo-name{display:block!important;font-size:13px}
+  .logo-v{display:none!important}
+  .nav{flex-direction:row;flex:1;padding:0;gap:1px;justify-content:center;overflow:hidden}
+  .nav-lbl{display:none!important}
+  /* FIX #5 — icons only on mobile, no text overflow */
+  .nav-link{
+    padding:6px 10px;justify-content:center;
+    flex:0 0 auto;
+  }
+  .nav-link span{display:none!important}
+  .nav-link .ni{width:26px;height:26px;font-size:11px}
+  .sb-foot{flex-direction:row;border:none;padding:0 4px;gap:3px;flex-shrink:0}
+  .t-lbl{display:none!important}
+  .theme-row{padding:7px 8px}
+  .key-btn{padding:6px 8px}
+  .key-btn span{display:none}
+  .inst-btn span{display:none!important}
+  .inst-btn{padding:7px 9px}
+  /* Page content adjustments */
+  .qn-body{flex-direction:column}
+  .chat-col{width:100%;height:50%;border-right:none;border-bottom:1px solid var(--bd)}
+  /* Fix #6 — preview scrollable on mobile */
+  .prev-col{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .prev-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .feat-grid{grid-template-columns:1fr}
+  .steps{flex-direction:column}
+  .steps::before{display:none}
+  .step{display:flex;align-items:flex-start;gap:11px;text-align:left}
+  .step-n{margin:0;flex-shrink:0}
+  .home-scroll{padding:26px 18px 56px}
+  .doc-inputs{flex-direction:column}
+  .mode-tabs{flex-direction:column}
+  .copyright-bar{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ================================================================
+     SIDEBAR
+================================================================ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-logo" onclick="nav('home')" style="cursor:pointer" title="Go to Home">
+    <div class="logo-mark">⚡</div>
+    <div class="logo-name">Quick<em>Notes</em></div>
+    <span class="logo-v">v2.1</span>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-lbl">Pages</div>
+    <button class="nav-link active" data-page="home" onclick="nav('home')">
+      <div class="ni"><i class="fas fa-house"></i></div>
+      <span>Home</span>
+    </button>
+    <button class="nav-link" data-page="notes" onclick="nav('notes')">
+      <div class="ni"><i class="fas fa-bolt"></i></div>
+      <span>Quick Notes</span>
+    </button>
+    <button class="nav-link" data-page="merge" onclick="nav('merge')">
+      <div class="ni"><i class="fas fa-layer-group"></i></div>
+      <span>Merge PDF</span>
+    </button>
+  </nav>
+
+  <div class="sb-foot">
+    <!-- API Key button — FIX #4 & #6 -->
+    <button class="key-btn" id="keyBtn" onclick="openKeyModal()">
+      <i class="fas fa-key"></i>
+      <span id="keyBtnLbl">API Key</span>
+    </button>
+    <div class="theme-row" onclick="toggleTheme()" role="switch">
+      <span id="thIco" style="font-size:13px">🌙</span>
+      <span class="t-lbl" id="thLbl">Dark Mode</span>
+      <div class="pill" id="thPill"><div class="pill-thumb"></div></div>
+    </div>
+    <button class="inst-btn" id="installBtn" onclick="doInstall()">
+      <i class="fas fa-download"></i>
+      <span>Add to Home</span>
+    </button>
+  </div>
+</aside>
+
+<!-- ================================================================
+     MAIN
+================================================================ -->
+<main class="main">
+
+<!-- ============================================================
+     HOME PAGE
+============================================================ -->
+<div class="page active" id="page-home">
+  <div class="home-scroll">
+    <div class="home-inner">
+
+      <div class="h-badge"><div class="blink-dot"></div>AI-Powered · For Aspirants</div>
+
+      <h1 class="h-h1">Generate Smart Notes.<br><em>Download. Share.</em></h1>
+
+      <p class="h-sub">
+        Quick Notes transforms your raw text, topics, or handwritten note photos into
+        beautifully structured documents — ready to download as PDF or Word and share
+        with teammates instantly.
+      </p>
+
+      <div class="h-ctas">
+        <button class="btn-amber" onclick="nav('notes')">
+          <i class="fas fa-bolt"></i> Generate Notes
+        </button>
+        <button class="btn-ghost" onclick="nav('merge')">
+          <i class="fas fa-layer-group"></i> Merge / Convert PDF
+        </button>
+      </div>
+
+      <div class="eyebrow">Features</div>
+      <div class="feat-grid">
+        <div class="feat">
+          <div class="feat-ic"><i class="fas fa-pen-to-square"></i></div>
+          <div class="feat-t">Smart Formatting</div>
+          <div class="feat-d">Type or paste any text — instantly converted into polished, organized notes with no AI needed.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i class="fas fa-camera-retro"></i></div>
+          <div class="feat-t">Multiple Image Upload</div>
+          <div class="feat-d">Upload multiple handwritten note photos — all images embedded and organized in the document.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i class="fas fa-globe"></i></div>
+          <div class="feat-t">AI Web Research</div>
+          <div class="feat-d">Enable "AI Enhance" to call GPT-4o and enrich notes with related topics. Graceful fallback if it fails.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i class="fas fa-file-pdf"></i></div>
+          <div class="feat-t">PDF &amp; Word Export</div>
+          <div class="feat-d">Download polished notes as a multi-page PDF or editable Word document instantly.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i class="fas fa-layer-group"></i></div>
+          <div class="feat-t">Merge &amp; Convert PDF</div>
+          <div class="feat-d">Merge multiple PDFs or convert any number of images into a single PDF file.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i class="fas fa-share-nodes"></i></div>
+          <div class="feat-t">Share with File</div>
+          <div class="feat-d">Share generated PDFs directly via WhatsApp or Gmail — with the actual file attached.</div>
+        </div>
+      </div>
+
+      <div class="eyebrow">How It Works</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-n">1</div>
+          <div><div class="step-t">Provide Input</div><div class="step-d">Type a topic, paste text, or upload handwritten note images.</div></div>
+        </div>
+        <div class="step">
+          <div class="step-n">2</div>
+          <div><div class="step-t">Format or Enhance</div><div class="step-d">Instant local formatting, or toggle AI Enhance for GPT-powered notes.</div></div>
+        </div>
+        <div class="step">
+          <div class="step-n">3</div>
+          <div><div class="step-t">Preview Live</div><div class="step-d">See your document rendered in real time on the right panel.</div></div>
+        </div>
+        <div class="step">
+          <div class="step-n">4</div>
+          <div><div class="step-t">Download &amp; Share</div><div class="step-d">Export as PDF or Word, then share the file via WhatsApp or Gmail.</div></div>
+        </div>
+      </div>
+
+      <!-- FIX #9 — Hosting guide REMOVED -->
+
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     QUICK NOTES PAGE
+============================================================ -->
+<div class="page" id="page-notes">
+  <div class="qn-hd">
+    <button class="back-btn" onclick="nav('home')"><i class="fas fa-arrow-left"></i> Back</button>
+    <div class="doc-inputs">
+      <input type="text" class="di" id="docTitle" placeholder="📄 Document Title / Header Name"/>
+      <input type="text" class="di" id="docFile"  placeholder="🗂 Filename (e.g. physics_notes)"/>
+    </div>
+  </div>
+
+  <div class="qn-body">
+    <!-- ── CHAT ── -->
+    <div class="chat-col">
+      <div class="chat-feed" id="chatFeed">
+        <div class="msg ai">
+          <div class="msg-av ai">⚡</div>
+          <div class="msg-c">
+            <div class="msg-b">
+              Hi! I'm your note assistant.<br><br>
+              📝 <strong>Type</strong> a topic or paste text below<br>
+              📷 <strong>Upload</strong> multiple handwritten note images<br>
+              🤖 Toggle <strong>AI Enhance</strong> for GPT-powered notes<br><br>
+              Set a title &amp; filename above, then hit <strong>Generate</strong>!
+            </div>
+            <div class="msg-t">Just now</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-inp">
+        <!-- FIX #2 — Multiple image upload strip -->
+        <div class="up-strip" id="upStrip">
+          <span class="up-strip-lbl" id="upStripLbl">0 images</span>
+        </div>
+
+        <textarea class="ta" id="chatTA"
+          placeholder="Type your topic, paste raw notes, or upload handwritten images… (Enter = Generate, Shift+Enter = new line)"
+          onkeydown="onKey(event)"></textarea>
+
+        <div class="ctrl-bar">
+          <!-- FIX #2 — multiple attribute -->
+          <button class="cb" onclick="document.getElementById('fileInp').click()">
+            <i class="fas fa-images"></i> Upload
+          </button>
+          <input type="file" id="fileInp" class="finp" accept="image/*" multiple onchange="onFile(event)"/>
+
+          <!-- FIX #3 — AI only when this is ON -->
+          <button class="cb" id="relBtn" onclick="toggleRelated()">
+            <i class="fas fa-wand-magic-sparkles"></i> AI Enhance
+          </button>
+
+          <!-- FIX #8 — Clear button -->
+          <button class="cb danger" onclick="clearInput()" title="Clear text and images">
+            <i class="fas fa-trash-can"></i> Clear
+          </button>
+
+          <button class="cb send" id="sendBtn" onclick="generate()">
+            <i class="fas fa-paper-plane"></i> Generate
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PREVIEW ── -->
+    <div class="prev-col">
+      <div class="prev-tb">
+        <div class="pt-t"><i class="fas fa-file-lines" style="color:var(--acc)"></i> Document Preview</div>
+        <div class="sep"></div>
+        <button class="ab" id="btnReloadPrev" onclick="reloadPreview()" title="Reload preview with updated title/filename"><i class="fas fa-rotate-right"></i> Reload</button>
+        <button class="ab" id="btnResetPrev" onclick="resetPreview()" title="Clear preview"><i class="fas fa-eraser"></i> Reset</button>
+        <button class="ab danger-btn" id="btnResetAll" onclick="resetAll()" title="Reset everything — chat, input and preview"><i class="fas fa-trash-can"></i> Reset All</button>
+        <div class="sep"></div>
+        <span style="font-size:10px;color:var(--fa);font-family:'JetBrains Mono',monospace">DOWNLOAD</span>
+        <button class="ab pdf lk" id="btnPDF"  onclick="dlPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
+        <button class="ab word lk" id="btnWord" onclick="dlWord()"><i class="fas fa-file-word"></i> Word</button>
+        <div class="sep"></div>
+        <span style="font-size:10px;color:var(--fa);font-family:'JetBrains Mono',monospace">SHARE</span>
+        <!-- FIX #1 — share with actual file -->
+        <button class="ab wa lk"  id="btnWA"   onclick="shareNotesWA()"><i class="fab fa-whatsapp"></i> WhatsApp</button>
+        <button class="ab gm lk"  id="btnGM"   onclick="shareNotesGM()"><i class="fas fa-envelope"></i> Gmail</button>
+      </div>
+
+      <div class="prev-area" id="prevArea">
+        <div class="prev-empty" id="prevEmpty">
+          <div class="ei"><i class="fas fa-wand-magic-sparkles"></i></div>
+          <h3>No notes yet</h3>
+          <p>Your document will appear here after generation.</p>
+        </div>
+
+        <div class="shim-box" id="shimBox">
+          <div class="sh" style="width:48%;height:24px;margin-bottom:18px"></div>
+          <div class="sh" style="width:100%;height:13px"></div>
+          <div class="sh" style="width:86%;height:13px"></div>
+          <div class="sh" style="width:93%;height:13px"></div>
+          <div class="sh" style="width:68%;height:13px;margin-bottom:18px"></div>
+          <div class="sh" style="width:38%;height:17px;margin-bottom:12px"></div>
+          <div class="sh" style="width:100%;height:13px"></div>
+          <div class="sh" style="width:78%;height:13px"></div>
+          <div class="sh" style="width:90%;height:13px"></div>
+          <div class="sh" style="width:60%;height:13px;margin-bottom:18px"></div>
+          <div class="sh" style="width:38%;height:17px;margin-bottom:12px"></div>
+          <div class="sh" style="width:100%;height:13px"></div>
+          <div class="sh" style="width:74%;height:13px"></div>
+        </div>
+
+        <div class="doc-sheet" id="docSheet"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MERGE PDF PAGE
+============================================================ -->
+<div class="page" id="page-merge">
+  <div class="ph">
+    <button class="back-btn" onclick="nav('home')"><i class="fas fa-arrow-left"></i> Back</button>
+    <div class="ph-title">
+      <i class="fas fa-layer-group" style="color:var(--acc)"></i> Merge PDF
+      <span class="ph-badge">PDF TOOLS</span>
+    </div>
+  </div>
+
+  <div class="merge-scroll">
+    <div class="merge-inner">
+
+      <div class="mode-tabs">
+        <div class="mode-tab active" id="tab-merge" onclick="setMode('merge')">
+          <div class="mode-tab-ic">📑</div>
+          <div class="mode-tab-t">Merge PDF</div>
+          <div class="mode-tab-d">Combine multiple PDF files into one</div>
+        </div>
+        <div class="mode-tab" id="tab-img" onclick="setMode('img')">
+          <div class="mode-tab-ic">🖼️</div>
+          <div class="mode-tab-t">Images to PDF</div>
+          <div class="mode-tab-d">Convert any number of images into a single PDF</div>
+        </div>
+      </div>
+
+      <div class="up-zone" id="mergeZone"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="onMergeDrop(event)">
+        <div class="uz-ic"><i class="fas fa-cloud-arrow-up"></i></div>
+        <div class="uz-t" id="zoneTitle">Drop PDF files here</div>
+        <div class="uz-s" id="zoneSub">or click the button below — no file limit</div>
+        <button class="uz-btn" onclick="document.getElementById('mergeInp').click()">
+          <i class="fas fa-folder-open"></i> Choose Files
+        </button>
+        <input type="file" id="mergeInp" class="finp" multiple onchange="onMergeFile(event)"/>
+      </div>
+
+      <div class="file-list" id="fileList"></div>
+      <div class="progress-wrap" id="progWrap"><div class="progress-bar"></div></div>
+      <div class="merge-result" id="mergeResult">
+        <i class="fas fa-circle-check"></i>
+        <span id="mergeResultMsg">PDF ready!</span>
+      </div>
+
+      <div class="merge-acts">
+        <button class="btn-process" id="btnProcess" onclick="processMerge()" disabled>
+          <i class="fas fa-gears"></i> <span id="procLbl">Merge PDFs</span>
+        </button>
+        <button class="btn-out lk" id="btnDlMerge" onclick="dlMerged()">
+          <i class="fas fa-download"></i> Download PDF
+        </button>
+        <button class="btn-out" id="btnMergeReset" onclick="resetMergePage()" title="Reset merge page — clear all files and results">
+          <i class="fas fa-rotate-left"></i> Reset
+        </button>
+      </div>
+
+      <!-- FIX #1 — share merged PDF with file -->
+      <div class="share-row">
+        <span style="font-size:11.5px;color:var(--fa);align-self:center;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.8px">Share →</span>
+        <button class="sc wa lk" id="btnMWA" onclick="shareMergeWA()"><i class="fab fa-whatsapp"></i> WhatsApp</button>
+        <button class="sc gm lk" id="btnMGM" onclick="shareMergeGM()"><i class="fas fa-envelope"></i> Gmail</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ================================================================
+     MODAL — Web search failure
+================================================================ -->
+<div class="modal-ov" id="modalSearchFail">
+  <div class="modal">
+    <div class="m-ic">⚠️</div>
+    <div class="m-t">AI Generation Failed</div>
+    <div class="m-body">Gemini could not generate notes. You can continue and convert your text to a document locally, or cancel to edit your input.</div>
+    <div class="m-err" id="mErrTxt">Error details</div>
+    <div class="m-btns">
+      <button class="m-btn p" onclick="continueWithLocal()"><i class="fas fa-arrow-right"></i> Convert Locally</button>
+      <button class="m-btn s" onclick="closeSearchFailModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     MODAL — API Key  (FIX #4 & #6)
+================================================================ -->
+<div class="modal-ov" id="modalKey">
+  <div class="modal">
+    <div class="m-ic">🔑</div>
+    <div class="m-t">Gemini API Key</div>
+    <div class="m-body">Enter your Google Gemini API key to enable <strong>AI Enhance</strong> mode. Without a key, notes are generated locally from your text. Your key is stored in your browser only.</div>
+    <input type="password" class="m-inp" id="apiKeyInp" placeholder="AIza…" autocomplete="off"/>
+    <div class="m-hint">Get a free key at <strong>aistudio.google.com</strong> → Get API Key. It is never sent anywhere except directly to Google.</div>
+    <div class="m-btns">
+      <button class="m-btn p" onclick="saveKey()"><i class="fas fa-check"></i> Save Key</button>
+      <button class="m-btn danger" onclick="clearKey()"><i class="fas fa-trash"></i> Clear</button>
+      <button class="m-btn s" onclick="closeKeyModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"><span id="toastTxt">Done!</span></div>
+
+<!-- FIX #10 — Copyright -->
+<div class="copyright-bar">© LucidNex</div>
+
+<!-- ================================================================
+     JAVASCRIPT
+================================================================ -->
+<script>
+/* ── STATE ─────────────────────────────────────── */
+const S = {
+  dark: true,
+  includeRelated: false,        // FIX #3: AI only when this is true
+  uploadImages: [],             // FIX #2: array of {b64, mime, url, name}
+  genHTML: '',
+  // Merge
+  mergeMode: 'merge',
+  mergeFiles: [],
+  mergedBlob: null,
+  // Pending (for fallback after AI fail)
+  pendingText: '',
+  pendingImages: [],
+  deferredInstall: null,
+};
+
+/* ── PWA MANIFEST ──────────────────────────────── */
+(()=>{
+  const m={name:'Quick Notes',short_name:'QuickNotes',
+    description:'AI note generator, PDF merger & sharing',
+    start_url:'./',display:'standalone',
+    background_color:'#0d0b08',theme_color:'#f59e0b',
+    icons:[
+      {src:'https://placehold.co/192x192/f59e0b/0d0b08?text=QN&font=syne',sizes:'192x192',type:'image/png'},
+      {src:'https://placehold.co/512x512/f59e0b/0d0b08?text=QN&font=syne',sizes:'512x512',type:'image/png'},
+    ]};
+  const blob=new Blob([JSON.stringify(m)],{type:'application/manifest+json'});
+  document.getElementById('pwa-manifest').href=URL.createObjectURL(blob);
+})();
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();S.deferredInstall=e;
+  document.getElementById('installBtn').classList.add('show');
+});
+window.addEventListener('appinstalled',()=>{
+  document.getElementById('installBtn').classList.remove('show');
+  toast('🎉 Quick Notes installed!');
+});
+async function doInstall(){
+  if(S.deferredInstall){
+    S.deferredInstall.prompt();
+    await S.deferredInstall.userChoice;
+    S.deferredInstall=null;
+  } else {
+    toast("💡 Use your browser's 'Add to Home Screen' option");
+  }
+}
+
+/* ── NAVIGATION ────────────────────────────────── */
+function nav(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelector(`[data-page="${id}"]`).classList.add('active');
+}
+
+/* ── THEME ─────────────────────────────────────── */
+function toggleTheme(){
+  S.dark=!S.dark;
+  document.documentElement.setAttribute('data-theme',S.dark?'dark':'light');
+  document.getElementById('thIco').textContent=S.dark?'🌙':'☀️';
+  document.getElementById('thLbl').textContent=S.dark?'Dark Mode':'Light Mode';
+  document.getElementById('thPill').classList.toggle('on',!S.dark);
+}
+
+/* ── TOAST ─────────────────────────────────────── */
+let _tt=null;
+function toast(msg,dur=3400){
+  const el=document.getElementById('toast');
+  document.getElementById('toastTxt').textContent=msg;
+  el.classList.add('show');
+  clearTimeout(_tt);
+  _tt=setTimeout(()=>el.classList.remove('show'),dur);
+}
+
+/* ================================================================
+   FIX #4 & #6 — API KEY MANAGEMENT (OpenAI, no CORS issue)
+================================================================ */
+function openKeyModal(){
+  const existing=localStorage.getItem('qn_gemini_key')||'';
+  document.getElementById('apiKeyInp').value=existing;
+  document.getElementById('modalKey').classList.add('show');
+}
+function closeKeyModal(){
+  document.getElementById('modalKey').classList.remove('show');
+}
+function saveKey(){
+  const k=document.getElementById('apiKeyInp').value.trim();
+  if(!k){toast('⚠️ Please enter a key');return;}
+  localStorage.setItem('qn_gemini_key',k);
+  updateKeyBtn();
+  closeKeyModal();
+  toast('✅ Gemini API key saved!');
+}
+function clearKey(){
+  localStorage.removeItem('qn_gemini_key');
+  document.getElementById('apiKeyInp').value='';
+  updateKeyBtn();
+  toast('🗑️ API key cleared');
+}
+function updateKeyBtn(){
+  const has=!!localStorage.getItem('qn_gemini_key');
+  const btn=document.getElementById('keyBtn');
+  const lbl=document.getElementById('keyBtnLbl');
+  btn.classList.toggle('set',has);
+  if(lbl) lbl.textContent=has?'Key ✓':'API Key';
+}
+
+/* ================================================================
+   FIX #2 — MULTIPLE IMAGE UPLOAD
+================================================================ */
+function onFile(e){
+  const files=Array.from(e.target.files).filter(f=>f.type.startsWith('image/'));
+  if(!files.length){toast('⚠️ Please choose image files');return;}
+  let loaded=0;
+  files.forEach(f=>{
+    const r=new FileReader();
+    r.onload=ev=>{
+      S.uploadImages.push({
+        b64:ev.target.result.split(',')[1],
+        mime:f.type,
+        url:ev.target.result,
+        name:f.name
+      });
+      loaded++;
+      if(loaded===files.length){
+        renderUploadStrip();
+        toast(`📷 ${S.uploadImages.length} image${S.uploadImages.length>1?'s':''} ready`);
+      }
+    };
+    r.readAsDataURL(f);
+  });
+  e.target.value='';
+}
+
+function removeUploadImage(idx){
+  S.uploadImages.splice(idx,1);
+  renderUploadStrip();
+}
+
+function renderUploadStrip(){
+  const strip=document.getElementById('upStrip');
+  const lbl=document.getElementById('upStripLbl');
+  if(!S.uploadImages.length){
+    strip.classList.remove('show');
+    return;
+  }
+  strip.classList.add('show');
+  // Rebuild strip content
+  // Keep the label span, replace thumb items
+  const existingThumbs=strip.querySelectorAll('.up-thumb-item');
+  existingThumbs.forEach(el=>el.remove());
+  lbl.textContent=`${S.uploadImages.length} image${S.uploadImages.length>1?'s':''}`;
+  S.uploadImages.forEach((img,i)=>{
+    const wrap=document.createElement('div');
+    wrap.className='up-thumb-item';
+    wrap.innerHTML=`<img src="${img.url}" alt="${img.name}" title="${img.name}"/>
+      <button class="up-thumb-rm" onclick="removeUploadImage(${i})" title="Remove">✕</button>`;
+    strip.appendChild(wrap);
+  });
+}
+
+/* ── AI ENHANCE TOGGLE (FIX #3) ─────────────────── */
+function toggleRelated(){
+  S.includeRelated=!S.includeRelated;
+  document.getElementById('relBtn').classList.toggle('on',S.includeRelated);
+  if(S.includeRelated&&!localStorage.getItem('qn_gemini_key')){
+    toast('⚠️ Set your Gemini API key (⚙ Key button) for AI Enhance');
+  } else {
+    toast(S.includeRelated?'🤖 AI Enhance ON':'🤖 AI Enhance OFF');
+  }
+}
+
+/* ── CLEAR INPUT (FIX #8) ───────────────────────── */
+function clearInput(){
+  document.getElementById('chatTA').value='';
+  S.uploadImages=[];
+  renderUploadStrip();
+  document.getElementById('fileInp').value='';
+  localStorage.removeItem('qn_draft');
+  toast('🗑️ Cleared');
+}
+
+/* ================================================================
+   NEW FIXES — PREVIEW CONTROLS
+================================================================ */
+// Fix 1 — Reload preview with current title
+function reloadPreview(){
+  if(!S.genHTML){ toast('⚠️ No notes to reload'); return; }
+  const title = document.getElementById('docTitle').value.trim() || 'Study Notes';
+  // Replace the <h1> tag content in stored HTML with updated title
+  const updated = S.genHTML.replace(/<h1>[^<]*<\/h1>/i, `<h1>📄 ${escapeHTML(title)}</h1>`);
+  S.genHTML = updated;
+  localStorage.setItem('qn_html', updated);
+  showDoc(updated);
+  toast('🔄 Preview reloaded with updated title!');
+}
+
+// Fix 2 — Reset (clear) preview only
+function resetPreview(){
+  S.genHTML = '';
+  localStorage.removeItem('qn_html');
+  const sheet = document.getElementById('docSheet');
+  sheet.innerHTML = ''; sheet.style.display = 'none';
+  document.getElementById('shimBox').classList.remove('on');
+  document.getElementById('prevEmpty').style.display = 'flex';
+  ['btnPDF','btnWord','btnWA','btnGM'].forEach(id =>
+    document.getElementById(id).classList.add('lk'));
+  toast('🗑️ Preview cleared');
+}
+
+// Fix 3 — Reset All: clear chat, inputs, images, and preview
+function resetAll(){
+  // Clear chat (keep initial greeting)
+  const feed = document.getElementById('chatFeed');
+  feed.innerHTML = `<div class="msg ai">
+    <div class="msg-av ai">⚡</div>
+    <div class="msg-c">
+      <div class="msg-b">
+        Hi! I'm your note assistant.<br><br>
+        📝 <strong>Type</strong> a topic or paste text below<br>
+        📷 <strong>Upload</strong> multiple handwritten note images<br>
+        🤖 Toggle <strong>AI Enhance</strong> for Gemini-powered notes<br><br>
+        Set a title &amp; filename above, then hit <strong>Generate</strong>!
+      </div>
+      <div class="msg-t">Just now</div>
+    </div>
+  </div>`;
+  // Clear inputs
+  document.getElementById('chatTA').value = '';
+  document.getElementById('docTitle').value = '';
+  document.getElementById('docFile').value = '';
+  S.uploadImages = [];
+  renderUploadStrip();
+  document.getElementById('fileInp').value = '';
+  // Clear localStorage
+  localStorage.removeItem('qn_draft');
+  localStorage.removeItem('qn_title');
+  localStorage.removeItem('qn_file');
+  // Clear preview
+  resetPreview();
+  toast('♻️ Everything reset!');
+}
+
+// Fix 4 — Reset Merge PDF page
+function resetMergePage(){
+  S.mergeFiles = []; S.mergedBlob = null;
+  renderFileList();
+  document.getElementById('btnProcess').disabled = true;
+  document.getElementById('mergeResult').classList.remove('show');
+  document.getElementById('progWrap').classList.remove('show');
+  ['btnDlMerge','btnMWA','btnMGM'].forEach(id =>
+    document.getElementById(id).classList.add('lk'));
+  document.getElementById('mergeInp').value = '';
+  toast('♻️ Merge page reset!');
+}
+
+/* ── KEYBOARD ───────────────────────────────────── */
+function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();generate();}}
+
+/* ── CHAT HELPERS ───────────────────────────────── */
+function ts(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+function addMsg(role,html){
+  const feed=document.getElementById('chatFeed');
+  const d=document.createElement('div');
+  d.className=`msg ${role}`;
+  d.innerHTML=`<div class="msg-av ${role}">${role==='ai'?'⚡':'👤'}</div>
+    <div class="msg-c"><div class="msg-b">${html}</div><div class="msg-t">${ts()}</div></div>`;
+  feed.appendChild(d);feed.scrollTop=feed.scrollHeight;
+}
+function addTyping(){
+  const feed=document.getElementById('chatFeed');
+  const d=document.createElement('div');
+  d.id='tyRow';d.className='msg ai';
+  d.innerHTML=`<div class="msg-av ai">⚡</div>
+    <div class="ty-b"><div class="td"></div><div class="td"></div><div class="td"></div></div>`;
+  feed.appendChild(d);feed.scrollTop=feed.scrollHeight;
+}
+function rmTyping(){const el=document.getElementById('tyRow');if(el)el.remove();}
+function showShim(){
+  document.getElementById('prevEmpty').style.display='none';
+  document.getElementById('shimBox').classList.add('on');
+  document.getElementById('docSheet').style.display='none';
+}
+function showDoc(html){
+  document.getElementById('shimBox').classList.remove('on');
+  document.getElementById('prevEmpty').style.display='none';
+  const s=document.getElementById('docSheet');
+  s.innerHTML=html;s.style.display='block';
+}
+function unlockActions(){
+  ['btnPDF','btnWord','btnWA','btnGM'].forEach(id=>
+    document.getElementById(id).classList.remove('lk'));
+}
+
+/* ================================================================
+   FIX #3 & #4 — GENERATE: local-only when AI Enhance OFF;
+                            GPT when ON; fallback to local on fail
+================================================================ */
+async function generate(){
+  const txt=document.getElementById('chatTA').value.trim();
+  const title=document.getElementById('docTitle').value.trim()||'Study Notes';
+  if(!txt&&!S.uploadImages.length){toast('⚠️ Type something or upload an image');return;}
+
+  S.pendingText=txt;
+  S.pendingImages=[...S.uploadImages];
+
+  // User bubble
+  let ub='';
+  S.uploadImages.forEach(img=>{
+    ub+=`<img class="msg-img" src="${img.url}" title="${img.name}"/>`;
+  });
+  if(ub) ub+='<br>';
+  ub+=txt||'Generate notes from uploaded image(s).';
+  addMsg('user',ub);
+
+  document.getElementById('chatTA').value='';
+  localStorage.removeItem('qn_draft');
+  document.getElementById('sendBtn').disabled=true;
+
+  if(S.includeRelated){
+    // FIX #3 — AI only when toggled ON
+    const apiKey=localStorage.getItem('qn_gemini_key')||'';
+    if(!apiKey){
+      toast('⚠️ Add your Gemini API key first (⚙ Key button)');
+      document.getElementById('sendBtn').disabled=false;
+      return;
+    }
+    addTyping();showShim();
+    try{
+      const html=await callGemini(title,txt,S.pendingImages,apiKey);
+      finishGeneration(html);
+    }catch(err){
+      rmTyping();
+      document.getElementById('shimBox').classList.remove('on');
+      document.getElementById('prevEmpty').style.display='flex';
+      // FIX #4 — show fallback modal
+      showSearchFailModal(err.message||'Unknown error');
+    }
+  } else {
+    // FIX #3 — No AI: convert text locally immediately
+    showShim();
+    await new Promise(r=>setTimeout(r,400)); // brief shimmer effect
+    try{
+      const html=textToDocHTML(title,txt,S.pendingImages);
+      finishGeneration(html);
+    }catch(err){
+      document.getElementById('shimBox').classList.remove('on');
+      document.getElementById('prevEmpty').style.display='flex';
+      addMsg('ai',`❌ <strong>Error:</strong> ${err.message}`);
+      toast('❌ '+err.message);
+      document.getElementById('sendBtn').disabled=false;
+    }
+  }
+}
+
+function finishGeneration(html){
+  S.genHTML=html;
+  localStorage.setItem('qn_html',html);  // FIX #7
+  rmTyping();showDoc(html);unlockActions();
+  S.uploadImages=[];renderUploadStrip();
+  addMsg('ai','✅ <strong>Notes ready!</strong> Preview on the right → Download as <strong>PDF / Word</strong> or share via <strong>WhatsApp / Gmail</strong> with the actual file!');
+  toast('✅ Notes generated!');
+  document.getElementById('sendBtn').disabled=false;
+}
+
+/* ================================================================
+   FIX #5 — GEMINI API (replaces OpenAI)
+================================================================ */
+async function callGemini(title, text, images, apiKey){
+  const systemPrompt=`You are an expert academic note-taking assistant. Convert the user's input into highly structured, comprehensive study notes in clean HTML format.
+
+STRICT OUTPUT RULES:
+• Return ONLY inner HTML — no <html>, <head>, <body>, NO markdown fences or backticks
+• Use <h1> for the main title: "${escapeHTML(title)}"
+• Use <h2> for major sections with relevant emoji prefix (e.g. "📘 Introduction")
+• Use <h3> for subsections
+• Use <ul>/<ol> for lists, <strong> for key terms, <blockquote> for definitions
+• Use <hr> between major sections, <p> for paragraphs
+• If images provided: extract ALL visible text, preserve structure, enhance formatting
+• Include a <h2>🌐 Related Topics</h2> section with supplementary information and context
+• End with <h2>📌 Key Takeaways</h2> — top 5 bullet points
+• Make notes thorough, well-organized, and scannable`;
+
+  // Build content parts for Gemini
+  const parts = [];
+
+  // Add images as inline data
+  images.forEach(img => {
+    parts.push({
+      inlineData: {
+        mimeType: img.mime,
+        data: img.b64
+      }
+    });
+  });
+
+  // Add text prompt
+  const userText = text || (images.length > 0 ? 'Extract text from these images and generate structured comprehensive study notes with related topics.' : 'Generate structured comprehensive study notes with related topics.');
+  parts.push({ text: systemPrompt + '\n\nUser input:\n' + userText });
+
+  const body = {
+    contents: [{ role: 'user', parts }],
+    generationConfig: { maxOutputTokens: 4096, temperature: 0.7 }
+  };
+
+  const model = 'gemini-2.0-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch(netErr) {
+    throw new Error('Network error. Please check your internet connection and try again.');
+  }
+
+  if(!res.ok){
+    let errMsg = `HTTP ${res.status}`;
+    try { const d = await res.json(); errMsg = d.error?.message || errMsg; } catch(_) {}
+    throw new Error(errMsg);
+  }
+
+  const data = await res.json();
+  let html = (data.candidates?.[0]?.content?.parts?.[0]?.text || '')
+    .replace(/```html?/gi, '').replace(/```/g, '').trim();
+  if(!html) throw new Error('Empty response from Gemini');
+  return html;
+}
+
+/* ================================================================
+   FIX #3 & #4 — LOCAL TEXT → HTML CONVERTER (no AI needed)
+================================================================ */
+function escapeHTML(str){
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function processInline(str){
+  return escapeHTML(str)
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`(.+?)`/g,'<code style="background:var(--s2);padding:1px 5px;border-radius:3px;font-size:.9em">$1</code>');
+}
+
+function textToDocHTML(title, text, images){
+  let html=`<h1>📄 ${escapeHTML(title)}</h1>`;
+
+  if(text){
+    const lines=text.split('\n');
+    let inUl=false, inOl=false;
+
+    const closeList=()=>{
+      if(inUl){html+='</ul>';inUl=false;}
+      if(inOl){html+='</ol>';inOl=false;}
+    };
+
+    for(let line of lines){
+      const t=line.trim();
+      if(!t){closeList();continue;}
+
+      // Markdown headings
+      if(t.startsWith('### ')){
+        closeList();
+        html+=`<h3>${processInline(t.slice(4))}</h3>`;
+      } else if(t.startsWith('## ')){
+        closeList();
+        html+=`<h2>📘 ${processInline(t.slice(3))}</h2>`;
+      } else if(t.startsWith('# ')){
+        closeList();
+        html+=`<h2>📘 ${processInline(t.slice(2))}</h2>`;
+      }
+      // Unordered list item
+      else if(/^[-*•]\s+/.test(t)){
+        if(inOl){closeList();}
+        if(!inUl){html+='<ul>';inUl=true;}
+        html+=`<li>${processInline(t.replace(/^[-*•]\s+/,''))}</li>`;
+      }
+      // Ordered list
+      else if(/^\d+[.)]\s+/.test(t)){
+        if(inUl){closeList();}
+        if(!inOl){html+='<ol>';inOl=true;}
+        html+=`<li>${processInline(t.replace(/^\d+[.)]\s+/,''))}</li>`;
+      }
+      // Section heading heuristic: short line ending with colon OR ALL CAPS
+      else if((t.endsWith(':')&&t.length<70&&!t.includes('.'))||
+              (t===t.toUpperCase()&&t.length>3&&t.length<60&&/[A-Z]/.test(t))){
+        closeList();
+        html+=`<h2>📘 ${processInline(t.replace(/:$/,''))}</h2>`;
+      }
+      // Blockquote
+      else if(t.startsWith('> ')){
+        closeList();
+        html+=`<blockquote>${processInline(t.slice(2))}</blockquote>`;
+      }
+      // HR
+      else if(/^[-_*]{3,}$/.test(t)){
+        closeList();html+='<hr>';
+      }
+      // Normal paragraph
+      else{
+        closeList();
+        html+=`<p>${processInline(t)}</p>`;
+      }
+    }
+    closeList();
+  }
+
+  // Append uploaded images
+  if(images.length>0){
+    html+=`<hr><h2>📎 Uploaded Notes</h2>`;
+    images.forEach(img=>{
+      html+=`<img src="${img.url}" alt="${escapeHTML(img.name)}" style="display:block;margin:10px 0;max-width:100%;border-radius:7px;border:1px solid var(--bd)"/>`;
+    });
+  }
+
+  // Auto key takeaways if not present
+  if(!text.toLowerCase().includes('takeaway')&&!text.toLowerCase().includes('summary')&&!text.toLowerCase().includes('conclusion')){
+    html+=`<hr><h2>📌 Key Takeaways</h2>
+    <ul>
+      <li>Review the main points highlighted in <strong>bold</strong> above.</li>
+      <li>Revisit each section systematically for better retention.</li>
+      <li>Create your own examples to reinforce concepts.</li>
+      <li>Connect ideas across sections to build deeper understanding.</li>
+      <li>Practice recall by covering the notes and summarizing each section.</li>
+    </ul>`;
+  }
+
+  return html;
+}
+
+/* ── MODAL — search/AI fail ─────────────────────── */
+function showSearchFailModal(err){
+  document.getElementById('mErrTxt').textContent=err;
+  document.getElementById('modalSearchFail').classList.add('show');
+}
+function closeSearchFailModal(){
+  document.getElementById('modalSearchFail').classList.remove('show');
+  document.getElementById('sendBtn').disabled=false;
+}
+async function continueWithLocal(){
+  closeSearchFailModal();
+  document.getElementById('sendBtn').disabled=true;
+  showShim();
+  const title=document.getElementById('docTitle').value.trim()||'Study Notes';
+  await new Promise(r=>setTimeout(r,300));
+  try{
+    const html=textToDocHTML(title,S.pendingText,S.pendingImages);
+    finishGeneration(html);
+  }catch(err){
+    document.getElementById('shimBox').classList.remove('on');
+    document.getElementById('prevEmpty').style.display='flex';
+    addMsg('ai',`❌ <strong>Error:</strong> ${err.message}`);
+    toast('❌ '+err.message);
+    document.getElementById('sendBtn').disabled=false;
+  }
+}
+
+/* ================================================================
+   PDF BLOB GENERATOR (shared between download + share)
+================================================================ */
+async function genPDFBlob(){
+  if(!S.genHTML) throw new Error('No content to export');
+  const wrap=document.createElement('div');
+  wrap.style.cssText=`
+    position:fixed;top:-9999px;left:-9999px;width:794px;
+    padding:50px 56px;background:#ffffff;color:#111827;
+    font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:13px;line-height:1.75;`;
+  wrap.innerHTML=`
+    <style>
+      h1{font-size:21px;color:#d97706;border-bottom:2px solid #e5e7eb;padding-bottom:9px;margin:0 0 18px;font-family:Georgia,serif}
+      h2{font-size:15px;color:#1f2937;margin:18px 0 9px;font-family:Georgia,serif}
+      h3{font-size:13px;font-weight:700;color:#6b7280;margin:13px 0 6px}
+      p{margin:0 0 9px}ul,ol{padding-left:19px;margin:0 0 10px}li{margin-bottom:4px}
+      strong{color:#d97706}hr{border:none;border-top:1px solid #e5e7eb;margin:16px 0}
+      blockquote{border-left:3px solid #d97706;padding-left:12px;color:#6b7280;font-style:italic;margin:10px 0}
+      a{color:#d97706}img{max-width:100%;border-radius:6px;margin:8px 0}
+      table{width:100%;border-collapse:collapse;margin:11px 0;font-size:12px}
+      th{background:#f9fafb;padding:6px 10px;text-align:left;border:1px solid #e5e7eb;font-weight:600}
+      td{padding:5px 10px;border:1px solid #e5e7eb}
+    </style>
+    ${S.genHTML}`;
+  document.body.appendChild(wrap);
+  const canvas=await html2canvas(wrap,{scale:2,useCORS:true,logging:false,allowTaint:true});
+  document.body.removeChild(wrap);
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({format:'a4',unit:'mm'});
+  const pxW=canvas.width,pxH=canvas.height;
+  const mmW=210,mmH=(pxH/pxW)*mmW,pageH=297;
+  let y=0;
+  while(y<mmH){
+    const srcY=(y/mmH)*pxH;
+    const sliceH=Math.min(pageH,mmH-y);
+    const slicePx=(sliceH/mmH)*pxH;
+    const sc=document.createElement('canvas');
+    sc.width=pxW;sc.height=slicePx;
+    sc.getContext('2d').drawImage(canvas,0,srcY,pxW,slicePx,0,0,pxW,slicePx);
+    const img=sc.toDataURL('image/jpeg',.92);
+    if(y>0)pdf.addPage();
+    pdf.addImage(img,'JPEG',0,0,mmW,sliceH);
+    y+=pageH;
+  }
+  return pdf.output('blob');
+}
+
+async function dlPDF(){
+  if(!S.genHTML)return;
+  const fn=document.getElementById('docFile').value.trim()||'notes';
+  toast('📄 Generating PDF…');
+  try{
+    const blob=await genPDFBlob();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=`${fn}.pdf`;a.click();
+    URL.revokeObjectURL(a.href);
+    toast('✅ PDF downloaded!');
+  }catch(err){toast('❌ PDF error: '+err.message);}
+}
+
+/* ── DOWNLOAD WORD ──────────────────────────────── */
+function dlWord(){
+  if(!S.genHTML)return;
+  const fn=document.getElementById('docFile').value.trim()||'notes';
+  const title=document.getElementById('docTitle').value.trim()||'Notes';
+  const html=`<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='UTF-8'><title>${title}</title>
+<style>body{font-family:Calibri,Arial;font-size:12pt;line-height:1.7;margin:72pt;color:#111827}
+h1{font-size:21pt;color:#d97706;border-bottom:2pt solid #e5e7eb;padding-bottom:8pt;margin-bottom:14pt}
+h2{font-size:15pt;color:#1f2937;margin-top:20pt;margin-bottom:10pt}
+h3{font-size:12pt;font-weight:bold;color:#6b7280;margin-top:13pt}
+p{margin-bottom:8pt}ul,ol{margin-left:17pt;margin-bottom:10pt}li{margin-bottom:4pt}
+strong{color:#d97706}hr{border:1pt solid #e5e7eb;margin:14pt 0}
+blockquote{border-left:3pt solid #d97706;padding-left:10pt;color:#6b7280;font-style:italic;margin:10pt 0}
+img{max-width:100%;margin:8pt 0}
+table{border-collapse:collapse;width:100%;margin:11pt 0}
+th{background:#f9fafb;padding:5pt;border:1pt solid #e5e7eb;font-weight:bold}
+td{padding:5pt;border:1pt solid #e5e7eb}</style>
+</head><body>${S.genHTML}</body></html>`;
+  const blob=new Blob(['\ufeff'+html],{type:'application/msword'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=`${fn}.doc`;a.click();
+  URL.revokeObjectURL(a.href);
+  toast('✅ Word doc downloaded!');
+}
+
+/* ================================================================
+   FIX #1 — SHARE WITH ACTUAL FILE (Web Share API + fallback)
+================================================================ */
+async function tryShareFile(blob, filename, shareTitle, shareText){
+  // Try Web Share API with file (works on mobile browsers)
+  if(navigator.share){
+    try{
+      const file=new File([blob],filename,{type:blob.type});
+      const canShare=(navigator.canShare&&navigator.canShare({files:[file]}));
+      if(canShare){
+        await navigator.share({title:shareTitle, text:shareText, files:[file]});
+        return 'shared';
+      }
+    }catch(e){
+      if(e.name==='AbortError') return 'aborted';
+      // Fall through to download fallback
+    }
+  }
+  // Fallback: auto-download the file
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+  URL.revokeObjectURL(a.href);
+  return 'downloaded';
+}
+
+async function shareNotesWA(){
+  if(!S.genHTML)return;
+  const title=document.getElementById('docTitle').value.trim()||'Notes';
+  const fn=(document.getElementById('docFile').value.trim()||'notes')+'.pdf';
+  toast('📤 Preparing file…');
+  try{
+    const blob=await genPDFBlob();
+    const result=await tryShareFile(blob,fn,title,`${title} — Quick Notes AI ⚡`);
+    if(result==='shared'){
+      toast('✅ Shared via WhatsApp!');
+    } else if(result==='downloaded'){
+      const txt=encodeURIComponent(`*${title}*\n\nPDF has been downloaded. Please attach the file "${fn}" to this chat.\n\n_Quick Notes AI ⚡_`);
+      window.open(`https://wa.me/?text=${txt}`,'_blank');
+      toast('💡 PDF saved! Open WhatsApp and attach the downloaded file.');
+    }
+  }catch(err){toast('❌ '+err.message);}
+}
+
+async function shareNotesGM(){
+  if(!S.genHTML)return;
+  const title=document.getElementById('docTitle').value.trim()||'Notes';
+  const fn=(document.getElementById('docFile').value.trim()||'notes')+'.pdf';
+  toast('📤 Preparing file…');
+  try{
+    const blob=await genPDFBlob();
+    const result=await tryShareFile(blob,fn,title,`${title} — Quick Notes AI ⚡`);
+    if(result==='shared'){
+      toast('✅ Shared via Gmail!');
+    } else if(result==='downloaded'){
+      const sub=encodeURIComponent(title);
+      const body=encodeURIComponent(`Please find the notes PDF attached (${fn}).\n\n---\nGenerated by Quick Notes AI ⚡`);
+      window.open(`https://mail.google.com/mail/?view=cm&su=${sub}&body=${body}`,'_blank');
+      toast('💡 PDF saved! Attach it in the Gmail compose window.');
+    }
+  }catch(err){toast('❌ '+err.message);}
+}
+
+/* ================================================================
+   MERGE PDF: SETUP
+================================================================ */
+function setMode(mode){
+  S.mergeMode=mode;S.mergeFiles=[];S.mergedBlob=null;
+  document.getElementById('tab-merge').classList.toggle('active',mode==='merge');
+  document.getElementById('tab-img').classList.toggle('active',mode==='img');
+  document.getElementById('zoneTitle').textContent=mode==='merge'?'Drop PDF files here':'Drop image files here';
+  document.getElementById('mergeInp').accept=mode==='merge'?'application/pdf':'image/*';
+  document.getElementById('procLbl').textContent=mode==='merge'?'Merge PDFs':'Convert to PDF';
+  renderFileList();
+  ['btnDlMerge','btnMWA','btnMGM'].forEach(id=>document.getElementById(id).classList.add('lk'));
+  document.getElementById('mergeResult').classList.remove('show');
+  document.getElementById('btnProcess').disabled=true;
+  document.getElementById('progWrap').classList.remove('show');
+}
+
+function onMergeFile(e){addMergeFiles(Array.from(e.target.files));e.target.value='';}
+function onMergeDrop(e){
+  e.preventDefault();
+  document.getElementById('mergeZone').classList.remove('drag-over');
+  addMergeFiles(Array.from(e.dataTransfer.files));
+}
+function addMergeFiles(files){
+  files.forEach(f=>{
+    if(S.mergeMode==='merge'&&f.type!=='application/pdf'){toast(`⚠️ ${f.name} is not a PDF`);return;}
+    if(S.mergeMode==='img'&&!f.type.startsWith('image/')){toast(`⚠️ ${f.name} is not an image`);return;}
+    S.mergeFiles.push({file:f,url:S.mergeMode==='img'?URL.createObjectURL(f):null});
+  });
+  renderFileList();
+  document.getElementById('btnProcess').disabled=S.mergeFiles.length<1;
+}
+function removeFile(i){
+  if(S.mergeFiles[i].url) URL.revokeObjectURL(S.mergeFiles[i].url);
+  S.mergeFiles.splice(i,1);renderFileList();
+  document.getElementById('btnProcess').disabled=S.mergeFiles.length<1;
+}
+function fmtBytes(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';return(b/1048576).toFixed(1)+'MB';}
+function renderFileList(){
+  const el=document.getElementById('fileList');
+  if(!S.mergeFiles.length){el.innerHTML='';return;}
+  el.innerHTML=S.mergeFiles.map((item,i)=>`
+    <div class="fi">
+      ${item.url?`<img class="fi-img-prev" src="${item.url}" alt=""/>`:
+        `<span class="fi-ic"><i class="fas fa-file-pdf"></i></span>`}
+      <span class="fi-n">${item.file.name}</span>
+      <span class="fi-sz">${fmtBytes(item.file.size)}</span>
+      <button class="fi-rm" onclick="removeFile(${i})">✕</button>
+    </div>`).join('');
+}
+
+/* ── MERGE PDF: PROCESS ─────────────────────────── */
+async function processMerge(){
+  if(!S.mergeFiles.length)return;
+  document.getElementById('btnProcess').disabled=true;
+  document.getElementById('progWrap').classList.add('show');
+  document.getElementById('mergeResult').classList.remove('show');
+  ['btnDlMerge','btnMWA','btnMGM'].forEach(id=>document.getElementById(id).classList.add('lk'));
+  try{
+    if(S.mergeMode==='merge'){
+      S.mergedBlob=await mergePDFs(S.mergeFiles.map(m=>m.file));
+    } else {
+      S.mergedBlob=await imagesToPDF(S.mergeFiles.map(m=>m.file));
+    }
+    document.getElementById('progWrap').classList.remove('show');
+    const n=S.mergeFiles.length;
+    const label=S.mergeMode==='merge'?`${n} PDFs merged successfully!`:`${n} image${n>1?'s':''} converted to PDF!`;
+    document.getElementById('mergeResultMsg').textContent=label;
+    document.getElementById('mergeResult').classList.add('show');
+    ['btnDlMerge','btnMWA','btnMGM'].forEach(id=>document.getElementById(id).classList.remove('lk'));
+    toast('✅ '+label);
+  }catch(err){
+    document.getElementById('progWrap').classList.remove('show');
+    toast('❌ Error: '+err.message);
+  }
+  document.getElementById('btnProcess').disabled=false;
+}
+
+async function mergePDFs(files){
+  const {PDFDocument}=PDFLib;
+  const merged=await PDFDocument.create();
+  for(const f of files){
+    try{
+      const ab=await f.arrayBuffer();
+      const pdf=await PDFDocument.load(ab,{ignoreEncryption:true});
+      const pages=await merged.copyPages(pdf,pdf.getPageIndices());
+      pages.forEach(p=>merged.addPage(p));
+    }catch(e){toast(`⚠️ Skipped ${f.name}: ${e.message}`);}
+  }
+  const bytes=await merged.save();
+  return new Blob([bytes],{type:'application/pdf'});
+}
+
+async function imagesToPDF(files){
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  for(let i=0;i<files.length;i++){
+    const f=files[i];
+    const dataUrl=await new Promise((res,rej)=>{
+      const r=new FileReader();
+      r.onload=e=>res(e.target.result);
+      r.onerror=rej;r.readAsDataURL(f);
+    });
+    const img=new Image();
+    img.src=dataUrl;
+    await new Promise(r=>img.onload=r);
+    if(i>0)pdf.addPage();
+    const pgW=210,pgH=297;
+    const ia=img.width/img.height,pa=pgW/pgH;
+    let w,h,x,y;
+    if(ia>pa){w=pgW;h=w/ia;x=0;y=(pgH-h)/2;}
+    else{h=pgH;w=h*ia;x=(pgW-w)/2;y=0;}
+    const fmt=f.type.includes('png')?'PNG':'JPEG';
+    pdf.addImage(dataUrl,fmt,x,y,w,h);
+  }
+  return pdf.output('blob');
+}
+
+/* ── DOWNLOAD MERGED ────────────────────────────── */
+function dlMerged(){
+  if(!S.mergedBlob)return;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(S.mergedBlob);
+  a.download=S.mergeMode==='merge'?'merged.pdf':'images-to-pdf.pdf';
+  a.click();URL.revokeObjectURL(a.href);
+  toast('✅ PDF downloaded!');
+}
+
+/* ================================================================
+   FIX #1 — SHARE MERGED PDF WITH ACTUAL FILE
+================================================================ */
+async function shareMergeWA(){
+  if(!S.mergedBlob)return;
+  const fn=S.mergeMode==='merge'?'merged.pdf':'images-to-pdf.pdf';
+  toast('📤 Preparing to share…');
+  try{
+    const result=await tryShareFile(S.mergedBlob,fn,'Merged PDF','Merged PDF — Quick Notes AI ⚡');
+    if(result==='shared'){
+      toast('✅ Shared via WhatsApp!');
+    } else if(result==='downloaded'){
+      const msg=encodeURIComponent(`PDF file "${fn}" has been downloaded. Please attach it to this chat.\n\n_Quick Notes AI ⚡_`);
+      window.open(`https://wa.me/?text=${msg}`,'_blank');
+      toast('💡 PDF saved! Attach it in WhatsApp.');
+    }
+  }catch(e){toast('❌ '+e.message);}
+}
+
+async function shareMergeGM(){
+  if(!S.mergedBlob)return;
+  const fn=S.mergeMode==='merge'?'merged.pdf':'images-to-pdf.pdf';
+  const subj=S.mergeMode==='merge'?'Merged PDF Document':'Images to PDF';
+  toast('📤 Preparing to share…');
+  try{
+    const result=await tryShareFile(S.mergedBlob,fn,subj,'Merged PDF — Quick Notes AI ⚡');
+    if(result==='shared'){
+      toast('✅ Shared via Gmail!');
+    } else if(result==='downloaded'){
+      const sub=encodeURIComponent(subj);
+      const body=encodeURIComponent(`Please find the PDF attached (${fn}).\n\n---\nGenerated by Quick Notes AI ⚡`);
+      window.open(`https://mail.google.com/mail/?view=cm&su=${sub}&body=${body}`,'_blank');
+      toast('💡 PDF saved! Attach it in Gmail.');
+    }
+  }catch(e){toast('❌ '+e.message);}
+}
+
+/* ================================================================
+   FIX #7 — LOCALSTORAGE PERSISTENCE
+================================================================ */
+// Save textarea on input
+document.getElementById('chatTA').addEventListener('input',function(){
+  localStorage.setItem('qn_draft',this.value);
+});
+// Save title/filename on input
+document.getElementById('docTitle').addEventListener('input',function(){
+  localStorage.setItem('qn_title',this.value);
+});
+document.getElementById('docFile').addEventListener('input',function(){
+  localStorage.setItem('qn_file',this.value);
+});
+
+/* ── INIT ───────────────────────────────────────── */
+window.addEventListener('load',()=>{
+  // Restore API key state (Gemini)
+  updateKeyBtn();
+
+  // FIX #7 — Restore draft text
+  const draft=localStorage.getItem('qn_draft');
+  if(draft) document.getElementById('chatTA').value=draft;
+
+  // Restore title/filename
+  const savedTitle=localStorage.getItem('qn_title');
+  const savedFile=localStorage.getItem('qn_file');
+  if(savedTitle) document.getElementById('docTitle').value=savedTitle;
+  if(savedFile) document.getElementById('docFile').value=savedFile;
+
+  // FIX #7 — Restore last generated HTML and enable download
+  const savedHTML=localStorage.getItem('qn_html');
+  if(savedHTML){
+    S.genHTML=savedHTML;
+    showDoc(savedHTML);
+    unlockActions();
+    addMsg('ai','📂 <strong>Previous notes restored!</strong> You can download or share them, or generate new ones.');
+  }
+});
+</script>
+</body>
+</html>
