@@ -358,11 +358,13 @@ body{
 .up-strip.show{display:flex}
 .up-thumb-item{
   position:relative;display:inline-flex;
-  border-radius:5px;overflow:visible;
+  border-radius:5px;overflow:visible;cursor:grab;
 }
+.up-thumb-item:active{cursor:grabbing}
 .up-thumb-item img{
   width:36px;height:36px;border-radius:5px;
   object-fit:cover;border:1px solid var(--bd);display:block;
+  pointer-events:none;user-select:none;
 }
 .up-thumb-rm{
   position:absolute;top:-5px;right:-5px;
@@ -373,8 +375,17 @@ body{
   line-height:1;padding:0;
 }
 .up-thumb-rm:hover{border-color:var(--red);color:var(--red);background:var(--red-dim)}
-.up-strip-lbl{font-size:11px;color:var(--mu);flex:1;min-width:60px}
+.up-strip-lbl{font-size:11px;color:var(--mu);flex-shrink:0}
 
+/* drag reorder — images strip */
+.up-thumb-item.is-dragging{opacity:.3;transform:scale(.88)}
+.up-thumb-item.drop-left{box-shadow:-3px 0 0 0 var(--acc)}
+.up-thumb-item.drop-right{box-shadow:3px 0 0 0 var(--acc)}
+.up-strip-hint{font-size:9.5px;color:var(--fa);font-family:'JetBrains Mono',monospace;flex:1;text-align:right;letter-spacing:.3px;white-space:nowrap}
+/* drag reorder — merge file list */
+.fi.is-dragging{opacity:.35;background:var(--acc-dim)}
+.fi.drop-above{box-shadow:0 -2px 0 0 var(--acc)}
+.fi.drop-below{box-shadow:0 2px 0 0 var(--acc)}
 textarea.ta{
   width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--bd);
   border-radius:var(--rsm);color:var(--tx);
@@ -714,7 +725,7 @@ textarea.ta::placeholder{color:var(--fa)}
   <div class="sb-logo" onclick="nav('home')" style="cursor:pointer" title="Go to Home">
     <div class="logo-mark">⚡</div>
     <div class="logo-name">Quick<em>Notes</em></div>
-    <span class="logo-v">v2.1</span>
+    <span class="logo-v">v2.1.4</span>
   </div>
 
   <nav class="nav">
@@ -797,7 +808,7 @@ textarea.ta::placeholder{color:var(--fa)}
         <div class="feat">
           <div class="feat-ic"><i class="fas fa-globe"></i></div>
           <div class="feat-t">AI Web Research</div>
-          <div class="feat-d">Enable "AI Enhance" to call GPT-4o and enrich notes with related topics. Graceful fallback if it fails.</div>
+          <div class="feat-d">Enable "AI Enhance" to call Gemini AI and enrich notes with related topics. Graceful fallback if it fails.</div>
         </div>
         <div class="feat">
           <div class="feat-ic"><i class="fas fa-file-pdf"></i></div>
@@ -824,7 +835,7 @@ textarea.ta::placeholder{color:var(--fa)}
         </div>
         <div class="step">
           <div class="step-n">2</div>
-          <div><div class="step-t">Format or Enhance</div><div class="step-d">Instant local formatting, or toggle AI Enhance for GPT-powered notes.</div></div>
+          <div><div class="step-t">Format or Enhance</div><div class="step-d">Instant local formatting, or toggle AI Enhance for Gemini-powered notes.</div></div>
         </div>
         <div class="step">
           <div class="step-n">3</div>
@@ -865,7 +876,7 @@ textarea.ta::placeholder{color:var(--fa)}
               Hi! I'm your note assistant.<br><br>
               📝 <strong>Type</strong> a topic or paste text below<br>
               📷 <strong>Upload</strong> multiple handwritten note images<br>
-              🤖 Toggle <strong>AI Enhance</strong> for GPT-powered notes<br><br>
+              🤖 Toggle <strong>AI Enhance</strong> for Gemini-powered notes<br><br>
               Set a title &amp; filename above, then hit <strong>Generate</strong>!
             </div>
             <div class="msg-t">Just now</div>
@@ -880,8 +891,7 @@ textarea.ta::placeholder{color:var(--fa)}
         </div>
 
         <textarea class="ta" id="chatTA"
-          placeholder="Type your topic, paste raw notes, or upload handwritten images… (Enter = Generate, Shift+Enter = new line)"
-          onkeydown="onKey(event)"></textarea>
+          placeholder="Type your topic, paste raw notes, or upload/paste images… (Enter = new line, Ctrl+Enter = Generate)"></textarea>
 
         <div class="ctrl-bar">
           <!-- FIX #2 — multiple attribute -->
@@ -1077,6 +1087,8 @@ const S = {
   dark: true,
   includeRelated: false,        // FIX #3: AI only when this is true
   uploadImages: [],             // FIX #2: array of {b64, mime, url, name}
+  _dragSrc: null,
+  _dragFi: null,
   genHTML: '',
   // Merge
   mergeMode: 'merge',
@@ -1212,23 +1224,65 @@ function removeUploadImage(idx){
 }
 
 function renderUploadStrip(){
-  const strip=document.getElementById('upStrip');
-  const lbl=document.getElementById('upStripLbl');
-  if(!S.uploadImages.length){
-    strip.classList.remove('show');
-    return;
-  }
+  var strip=document.getElementById('upStrip');
+  var lbl=document.getElementById('upStripLbl');
+  if(!S.uploadImages.length){strip.classList.remove('show');return;}
   strip.classList.add('show');
-  // Rebuild strip content
-  // Keep the label span, replace thumb items
-  const existingThumbs=strip.querySelectorAll('.up-thumb-item');
-  existingThumbs.forEach(el=>el.remove());
-  lbl.textContent=`${S.uploadImages.length} image${S.uploadImages.length>1?'s':''}`;
-  S.uploadImages.forEach((img,i)=>{
-    const wrap=document.createElement('div');
+  // Remove previous thumbs and hint; keep label span
+  strip.querySelectorAll('.up-thumb-item,.up-strip-hint').forEach(function(el){el.remove();});
+  lbl.textContent=S.uploadImages.length+' image'+(S.uploadImages.length>1?'s':'');
+  if(S.uploadImages.length>1){
+    var hint=document.createElement('span');
+    hint.className='up-strip-hint'; hint.textContent='drag to reorder';
+    strip.appendChild(hint);
+  }
+  S.uploadImages.forEach(function(img,i){
+    var wrap=document.createElement('div');
     wrap.className='up-thumb-item';
-    wrap.innerHTML=`<img src="${img.url}" alt="${img.name}" title="${img.name}"/>
-      <button class="up-thumb-rm" onclick="removeUploadImage(${i})" title="Remove">✕</button>`;
+    wrap.setAttribute('draggable','true');
+    wrap.setAttribute('data-idx',String(i));
+    var th=document.createElement('img');
+    th.src=img.url; th.alt=img.name; th.title=img.name;
+    var btn=document.createElement('button');
+    btn.className='up-thumb-rm'; btn.textContent='\u2715'; btn.title='Remove';
+    btn.setAttribute('data-rm',String(i));
+    wrap.appendChild(th); wrap.appendChild(btn);
+    btn.addEventListener('click',function(e){
+      e.stopPropagation();
+      S.uploadImages.splice(parseInt(this.getAttribute('data-rm')),1);
+      renderUploadStrip();
+    });
+    wrap.addEventListener('dragstart',function(e){
+      S._dragSrc=parseInt(this.getAttribute('data-idx'));
+      this.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed='move';
+    });
+    wrap.addEventListener('dragend',function(){
+      this.classList.remove('is-dragging');
+      strip.querySelectorAll('.drop-left,.drop-right').forEach(function(el){el.classList.remove('drop-left','drop-right');});
+    });
+    wrap.addEventListener('dragover',function(e){
+      e.preventDefault(); e.dataTransfer.dropEffect='move';
+      strip.querySelectorAll('.drop-left,.drop-right').forEach(function(el){el.classList.remove('drop-left','drop-right');});
+      var r=this.getBoundingClientRect();
+      this.classList.add(e.clientX<r.left+r.width/2?'drop-left':'drop-right');
+    });
+    wrap.addEventListener('dragleave',function(){
+      this.classList.remove('drop-left','drop-right');
+    });
+    wrap.addEventListener('drop',function(e){
+      e.preventDefault();
+      var from=S._dragSrc; var to=parseInt(this.getAttribute('data-idx'));
+      this.classList.remove('drop-left','drop-right');
+      if(from===to||from===null) return;
+      var r=this.getBoundingClientRect();
+      var insertAt=(e.clientX>=r.left+r.width/2)?to+1:to;
+      var moved=S.uploadImages.splice(from,1)[0];
+      S.uploadImages.splice(insertAt>from?insertAt-1:insertAt,0,moved);
+      S._dragSrc=null;
+      renderUploadStrip();
+      toast('\u2195 Image order updated');
+    });
     strip.appendChild(wrap);
   });
 }
@@ -1329,7 +1383,9 @@ function resetMergePage(){
 }
 
 /* ── KEYBOARD ───────────────────────────────────── */
-function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();generate();}}
+function onKey(e){
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();generate();}
+}
 
 /* ── CHAT HELPERS ───────────────────────────────── */
 function ts(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
@@ -1452,7 +1508,6 @@ STRICT OUTPUT RULES:
 • Use <hr> between major sections, <p> for paragraphs
 • If images provided: extract ALL visible text, preserve structure, enhance formatting
 • Include a <h2>🌐 Related Topics</h2> section with supplementary information and context
-• End with <h2>📌 Key Takeaways</h2> — top 5 bullet points
 • Make notes thorough, well-organized, and scannable`;
 
   // Build content parts for Gemini
@@ -1586,18 +1641,6 @@ function textToDocHTML(title, text, images){
     images.forEach(img=>{
       html+=`<img src="${img.url}" alt="${escapeHTML(img.name)}" style="display:block;margin:10px 0;max-width:100%;border-radius:7px;border:1px solid var(--bd)"/>`;
     });
-  }
-
-  // Auto key takeaways if not present
-  if(!text.toLowerCase().includes('takeaway')&&!text.toLowerCase().includes('summary')&&!text.toLowerCase().includes('conclusion')){
-    html+=`<hr><h2>📌 Key Takeaways</h2>
-    <ul>
-      <li>Review the main points highlighted in <strong>bold</strong> above.</li>
-      <li>Revisit each section systematically for better retention.</li>
-      <li>Create your own examples to reinforce concepts.</li>
-      <li>Connect ideas across sections to build deeper understanding.</li>
-      <li>Practice recall by covering the notes and summarizing each section.</li>
-    </ul>`;
   }
 
   return html;
@@ -1818,16 +1861,60 @@ function removeFile(i){
 }
 function fmtBytes(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';return(b/1048576).toFixed(1)+'MB';}
 function renderFileList(){
-  const el=document.getElementById('fileList');
+  var el=document.getElementById('fileList');
   if(!S.mergeFiles.length){el.innerHTML='';return;}
-  el.innerHTML=S.mergeFiles.map((item,i)=>`
-    <div class="fi">
-      ${item.url?`<img class="fi-img-prev" src="${item.url}" alt=""/>`:
-        `<span class="fi-ic"><i class="fas fa-file-pdf"></i></span>`}
-      <span class="fi-n">${item.file.name}</span>
-      <span class="fi-sz">${fmtBytes(item.file.size)}</span>
-      <button class="fi-rm" onclick="removeFile(${i})">✕</button>
-    </div>`).join('');
+  el.innerHTML='';
+  S.mergeFiles.forEach(function(item,i){
+    var fi=document.createElement('div');
+    fi.className='fi';
+    fi.setAttribute('draggable','true');
+    fi.setAttribute('data-fi',String(i));
+    fi.style.userSelect='none';
+    var icon='';
+    if(item.url){
+      icon='<img class="fi-img-prev" src="'+item.url+'" alt=""/>';
+    } else {
+      icon='<span class="fi-ic"><i class="fas fa-file-pdf"></i></span>';
+    }
+    fi.innerHTML=icon+
+      '<span class="fi-n">'+item.file.name+'</span>'+
+      '<span class="fi-sz">'+fmtBytes(item.file.size)+'</span>'+
+      '<button class="fi-rm" data-fi-rm="'+i+'">\u2715</button>';
+    fi.querySelector('.fi-rm').addEventListener('click',function(e){
+      e.stopPropagation();
+      removeFile(parseInt(this.getAttribute('data-fi-rm')));
+    });
+    fi.addEventListener('dragstart',function(e){
+      S._dragFi=parseInt(this.getAttribute('data-fi'));
+      this.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed='move';
+    });
+    fi.addEventListener('dragend',function(){
+      this.classList.remove('is-dragging');
+      el.querySelectorAll('.drop-above,.drop-below').forEach(function(x){x.classList.remove('drop-above','drop-below');});
+    });
+    fi.addEventListener('dragover',function(e){
+      e.preventDefault(); e.dataTransfer.dropEffect='move';
+      el.querySelectorAll('.drop-above,.drop-below').forEach(function(x){x.classList.remove('drop-above','drop-below');});
+      var r=this.getBoundingClientRect();
+      this.classList.add(e.clientY<r.top+r.height/2?'drop-above':'drop-below');
+    });
+    fi.addEventListener('dragleave',function(){this.classList.remove('drop-above','drop-below');});
+    fi.addEventListener('drop',function(e){
+      e.preventDefault();
+      var from=S._dragFi; var to=parseInt(this.getAttribute('data-fi'));
+      this.classList.remove('drop-above','drop-below');
+      if(from===to||from===null) return;
+      var r=this.getBoundingClientRect();
+      var insertAt=(e.clientY>=r.top+r.height/2)?to+1:to;
+      var moved=S.mergeFiles.splice(from,1)[0];
+      S.mergeFiles.splice(insertAt>from?insertAt-1:insertAt,0,moved);
+      S._dragFi=null;
+      renderFileList();
+      toast('\u2195 File order updated');
+    });
+    el.appendChild(fi);
+  });
 }
 
 /* ── MERGE PDF: PROCESS ─────────────────────────── */
@@ -1963,6 +2050,31 @@ document.getElementById('docFile').addEventListener('input',function(){
 window.addEventListener('load',()=>{
   // Restore API key state (Gemini)
   updateKeyBtn();
+
+  // Paste image from clipboard into textarea
+  document.getElementById('chatTA').addEventListener('paste',function(e){
+    var items=(e.clipboardData||window.clipboardData);
+    if(!items||!items.items) return;
+    var found=false;
+    Array.prototype.forEach.call(items.items,function(item){
+      if(item.type.indexOf('image/')===0){
+        found=true; e.preventDefault();
+        var file=item.getAsFile(); if(!file) return;
+        var r=new FileReader();
+        r.onload=function(ev){
+          S.uploadImages.push({b64:ev.target.result.split(',')[1],mime:file.type,url:ev.target.result,name:'paste-'+Date.now()+'.png'});
+          renderUploadStrip();
+          toast('Image pasted! '+S.uploadImages.length+' image'+(S.uploadImages.length>1?'s':'')+' ready.');
+        };
+        r.readAsDataURL(file);
+      }
+    });
+  });
+
+  // Ctrl/Cmd+Enter to generate
+  document.getElementById('chatTA').addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();generate();}
+  });
 
   // FIX #7 — Restore draft text
   const draft=localStorage.getItem('qn_draft');
